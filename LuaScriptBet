@@ -1,15 +1,14 @@
--- LocalScript в StarterGui
-local player = game.Players.LocalPlayer
-
--- УДАЛЕНИЕ ПРЕДЫДУЩЕГО GUI, если уже есть
-local oldGui = player:WaitForChild("PlayerGui"):FindFirstChild("LuaGUI")
-if oldGui then
-    oldGui:Destroy()
-end
-
+-- LocalScript в StarterGui (полный рабочий скрипт)
+local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+-- УДАЛЕНИЕ ПРЕДЫДУЩЕГО GUI, если уже есть
+local oldGui = player:WaitForChild("PlayerGui"):FindFirstChild("LuaGUI")
+if oldGui then oldGui:Destroy() end
 
 -- === GUI ===
 local gui = Instance.new("ScreenGui")
@@ -40,7 +39,7 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "Lua"
+iconText.Text = "PvP 0.4.3"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -62,8 +61,9 @@ winCorner.Parent = window
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 40)
+title.Position = UDim2.new(0,0,0,0)
 title.BackgroundTransparency = 1
-title.Text = "Lua Menu"
+title.Text = "PvP Menu"
 title.Font = Enum.Font.Arcade
 title.TextScaled = true
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -82,8 +82,65 @@ layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.VerticalAlignment = Enum.VerticalAlignment.Top
 layout.Parent = buttonsFrame
 
--- === Создание кнопок ===
-local buttons = {}
+-- === Вспомогательные таблицы ===
+local buttons = {}        -- кнопки (TextButton)
+local bindBoxes = {}      -- TextBox для биндов (только Big Ragdoll и Near Player)
+local binds = {           -- хранение биндов (строка)
+    ["Big Ragdoll"] = "",
+    ["Near Player"] = ""
+}
+
+-- создать строку: кнопка + bind box (если нужно)
+local function makeButtonRow(name, showBind)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(0.95, 0, 0, 28)
+    row.BackgroundTransparency = 1
+    row.Parent = buttonsFrame
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.74, 0, 1, 0)
+    btn.Position = UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    btn.AutoButtonColor = false
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.TextScaled = true
+    btn.Font = Enum.Font.Arcade
+    btn.Text = name
+    btn.Parent = row
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.18,0)
+    corner.Parent = btn
+
+    local bindBox = nil
+    if showBind then
+        bindBox = Instance.new("TextBox")
+        bindBox.Size = UDim2.new(0.24, 0, 1, 0)
+        bindBox.Position = UDim2.new(0.76, 0, 0, 0)
+        bindBox.BackgroundColor3 = Color3.fromRGB(35,35,35)
+        bindBox.TextColor3 = Color3.fromRGB(255,255,255)
+        bindBox.ClearTextOnFocus = true
+        bindBox.PlaceholderText = "Bind"
+        bindBox.Font = Enum.Font.Arcade
+        bindBox.TextScaled = true
+        bindBox.Text = binds[name] or ""
+        bindBox.Parent = row
+
+        local bcorner = Instance.new("UICorner")
+        bcorner.CornerRadius = UDim.new(0.18,0)
+        bcorner.Parent = bindBox
+    else
+        -- пустая заплатка чтобы layout не ломался
+        local spacer = Instance.new("Frame")
+        spacer.Size = UDim2.new(0.24, 0, 1, 0)
+        spacer.BackgroundTransparency = 1
+        spacer.Position = UDim2.new(0.76, 0, 0, 0)
+        spacer.Parent = row
+    end
+
+    return btn, bindBox
+end
+
 local buttonNames = {
     "HitBox Visible",
     "Speed Booster",
@@ -96,65 +153,53 @@ local buttonNames = {
     "Button 9"
 }
 
-local function createButton(name)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.85, 0, 0, 25)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextScaled = true
-    btn.Font = Enum.Font.Arcade
-    btn.Text = name
-    btn.Parent = buttonsFrame
-
-    local bc = Instance.new("UICorner")
-    bc.CornerRadius = UDim.new(0.2, 0)
-    bc.Parent = btn
-
-    -- Плавная смена цвета при наведении
-    local function tweenColor(color)
-        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = color}):Play()
-    end
-
-    btn.MouseEnter:Connect(function() tweenColor(Color3.fromRGB(70,70,70)) end)
-    btn.MouseLeave:Connect(function() tweenColor(Color3.fromRGB(40,40,40)) end)
-
-    buttons[name] = btn
-end
-
 for _, name in ipairs(buttonNames) do
-    createButton(name)
+    local showBind = (name == "Big Ragdoll" or name == "Near Player")
+    local btn, tb = makeButtonRow(name, showBind)
+    buttons[name] = btn
+    if tb then bindBoxes[name] = tb end
 end
 
--- === HITBOX Visible через блоки + ник ===
+-- helper: визуализация статуса кнопки (зелёный = включено)
+local function setButtonActiveVisual(name, on)
+    local b = buttons[name]
+    if not b then return end
+    if on then
+        b.BackgroundColor3 = Color3.fromRGB(0,170,0)
+    else
+        b.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    end
+end
+
+-- === HITBOX Visible (Highlight + Billboard) ===
 do
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
+    local PlayersSvc = Players
+    local Local = player
     local hitboxVisible = false
 
-    local function createHitboxESP(char, player)
+    local function createHitboxESP(char, ply)
         local hitbox = char:FindFirstChild("__HITBOX")
         if hitbox and hitbox:IsA("BasePart") then
-            -- Highlight
-            local hl = hitbox:FindFirstChild("HitboxHighlight")
-            if not hl then
-                hl = Instance.new("Highlight")
+            if not hitbox:FindFirstChild("HitboxHighlight") then
+                local hl = Instance.new("Highlight")
                 hl.Name = "HitboxHighlight"
-				hitbox.Transparency = 0.8
-                hl.FillColor = Color3.fromRGB(0, 0, 0)
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.Adornee = hitbox
+                hl.FillColor = Color3.fromRGB(0,0,0)
+                hl.OutlineColor = Color3.fromRGB(255,255,255)
                 hl.FillTransparency = 0.5
                 hl.OutlineTransparency = 0
                 hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                 hl.Parent = hitbox
             end
+            hitbox.Transparency = 0.5
+            hitbox.CanCollide = false
 
-            -- BillboardGui с ником
-            if not hitbox:FindFirstChild("BillboardGui") then
+            if not hitbox:FindFirstChild("HitboxNameBillboard") then
                 local billboard = Instance.new("BillboardGui")
-                billboard.Name = "BillboardGui"
+                billboard.Name = "HitboxNameBillboard"
                 billboard.Adornee = hitbox
                 billboard.AlwaysOnTop = true
-                billboard.Size = UDim2.new(0, 100, 0, 20)
+                billboard.Size = UDim2.new(0, 120, 0, 20)
                 billboard.StudsOffset = Vector3.new(0, 2.5, 0)
                 billboard.Parent = hitbox
 
@@ -162,7 +207,7 @@ do
                 nameLabel.Size = UDim2.new(1, 0, 1, 0)
                 nameLabel.BackgroundTransparency = 0.4
                 nameLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                nameLabel.Text = player.DisplayName or player.Name
+                nameLabel.Text = ply.DisplayName or ply.Name
                 nameLabel.Font = Enum.Font.Arcade
                 nameLabel.TextSize = 14
                 nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -172,332 +217,363 @@ do
         end
     end
 
+    local function removeHitboxESP(char)
+        if not char then return end
+        local hitbox = char:FindFirstChild("__HITBOX")
+        if hitbox then
+            local hl = hitbox:FindFirstChild("HitboxHighlight")
+            if hl then hl:Destroy() end
+            local bb = hitbox:FindFirstChild("HitboxNameBillboard")
+            if bb then bb:Destroy() end
+        end
+    end
+
     local function updateHitboxes()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character then
+        for _, plr in ipairs(PlayersSvc:GetPlayers()) do
+            if plr ~= Local and plr.Character then
                 local hitbox = plr.Character:FindFirstChild("__HITBOX")
                 if hitbox then
                     if hitboxVisible then
                         createHitboxESP(plr.Character, plr)
                     else
-                        for _, v in ipairs(hitbox:GetChildren()) do
-                            if v:IsA("Highlight") or v:IsA("BillboardGui") then
-                                v:Destroy()
-                            end
-                        end
+                        removeHitboxESP(plr.Character)
                     end
                 end
             end
         end
     end
 
-    -- Кнопка для включения / выключения
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(0, 140, 0, 28)
-    toggleButton.Text = "HitBox Visible"
-    toggleButton.Font = Enum.Font.Arcade
-    toggleButton.TextSize = 16
-    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
-    toggleButton.AutoButtonColor = false
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = toggleButton
-    toggleButton.Parent = mainFrame
-
-    toggleButton.MouseButton1Click:Connect(function()
+    local toggleBtn = buttons["HitBox Visible"]
+    toggleBtn.MouseButton1Click:Connect(function()
         hitboxVisible = not hitboxVisible
         updateHitboxes()
-        toggleButton.BackgroundColor3 = hitboxVisible and Color3.fromRGB(0,170,0) or Color3.fromRGB(220,20,60)
+        setButtonActiveVisual("HitBox Visible", hitboxVisible)
     end)
+    setButtonActiveVisual("HitBox Visible", false)
 
-    -- Автообновление при заходе/респавне
-    Players.PlayerAdded:Connect(function(plr)
+    PlayersSvc.PlayerAdded:Connect(function(plr)
         plr.CharacterAdded:Connect(function()
-            task.wait(1)
+            task.wait(0.5)
             updateHitboxes()
         end)
     end)
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Character then
-            createHitboxESP(plr.Character, plr)
-        end
-    end
 end
 
--- === Speed Booster логика ===
-local speedButton = buttons["Speed Booster"]
+-- === Speed Booster ===
 do
-    local speedConn
+    local speedBtn = buttons["Speed Booster"]
+    local speedActive = false
+    local speedConn = nil
     local baseSpeed = 27
-    local active = false
 
-    local function GetCharacter()
-        local Char = player.Character or player.CharacterAdded:Wait()
-        local HRP = Char:WaitForChild("HumanoidRootPart")
-        local Hum = Char:FindFirstChildOfClass("Humanoid")
-        return Char, HRP, Hum
+    local function getChar()
+        return player.Character
     end
 
-    local function getMovementInput()
-        local Char, HRP, Hum = GetCharacter()
-        if not Char or not HRP or not Hum then return Vector3.new(0,0,0) end
-        local moveVector = Hum.MoveDirection
-        if moveVector.Magnitude > 0.1 then
-            return Vector3.new(moveVector.X, 0, moveVector.Z).Unit
-        end
-        return Vector3.new(0,0,0)
-    end
-
-    local function startSpeedControl()
+    local function startSpeed()
         if speedConn then return end
         speedConn = RunService.Heartbeat:Connect(function()
-            local Char, HRP, Hum = GetCharacter()
-            if not Char or not HRP or not Hum then return end
-            local inputDirection = getMovementInput()
-            if inputDirection.Magnitude > 0 then
-                HRP.AssemblyLinearVelocity = Vector3.new(
-                    inputDirection.X*baseSpeed,
-                    HRP.AssemblyLinearVelocity.Y,
-                    inputDirection.Z*baseSpeed
-                )
-            else
-                HRP.AssemblyLinearVelocity = Vector3.new(0, HRP.AssemblyLinearVelocity.Y, 0)
-            end
-        end)
-    end
-
-    local function stopSpeedControl()
-        if speedConn then speedConn:Disconnect() speedConn = nil end
-        local Char, HRP = GetCharacter()
-        if HRP then HRP.AssemblyLinearVelocity = Vector3.new(0, HRP.AssemblyLinearVelocity.Y, 0) end
-    end
-
-    speedButton.MouseButton1Click:Connect(function()
-        active = not active
-        if active then
-            startSpeedControl()
-            TweenService:Create(speedButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(0,170,0)}):Play()
-        else
-            stopSpeedControl()
-            TweenService:Create(speedButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(220,20,60)}):Play()
-        end
-    end)
-
-    -- Начальный цвет кнопки
-    speedButton.BackgroundColor3 = Color3.fromRGB(220,20,60)
-end
-
--- === Перетаскивание иконки ===
-local dragging = false
-local dragStart, startPos
-
-icon.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = icon.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        icon.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
--- === Открытие/Закрытие окна ===
-local function toggleWindow()
-    if window.Visible then
-        window:TweenSizeAndPosition(
-            UDim2.new(0, 0, 0, 0),
-            window.Position,
-            Enum.EasingDirection.In,
-            Enum.EasingStyle.Quint,
-            0.2,
-            true
-        )
-        task.wait(0.2)
-        window.Visible = false
-    else
-        window.Visible = true
-        window.Size = UDim2.new(0, 0, 0, 0)
-        window:TweenSizeAndPosition(
-            UDim2.new(0, 230, 0, 300),
-            UDim2.new(0.5,0,0.5,0),
-            Enum.EasingDirection.Out,
-            Enum.EasingStyle.Quint,
-            0.25,
-            true
-        )
-    end
-end
-
-icon.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 and not dragging then
-        toggleWindow()
-    end
-end)
-
--- Открытие/закрытие по клавише RightShift
-UserInputService.InputBegan:Connect(function(input, processed)
-    if not processed and input.KeyCode == Enum.KeyCode.RightShift then
-        toggleWindow()
-    end
-end)
--- === Big Ragdoll логика ===
-local bigRagdollButton = buttons["Big Ragdoll"]
-
-do
-    local enabled = false
-    local Player = game.Players.LocalPlayer
-    local Mouse = Player:GetMouse()
-    local TweenService = game:GetService("TweenService")
-
-    -- Функция удара
-    local function performRagdollHit()
-        local character = Player.Character
-        if not character then return end
-
-        local backpack = Player:WaitForChild("Backpack")
-
-        local bat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
-        local glitch = backpack:FindFirstChild("Glitched Slap") or character:FindFirstChild("Glitched Slap")
-
-        if not bat or not glitch then return end
-
-        -- Переключение Bat → Glitched Slap
-        if bat.Parent == character then
-            bat.Parent = backpack
-        end
-        
-        glitch.Parent = character
-
-        -- Вызов удара
-        if glitch:FindFirstChild("Activate") then
-            glitch.Activate:Fire()
-        else
-            glitch:Activate()
-        end
-
-        -- Возврат через 0.1 сек
-        task.delay(0.001, function()
-            if glitch.Parent == character then
-                glitch.Parent = backpack
-            end
-            bat.Parent = character
-        end)
-    end
-
-    -- Кнопка включения режима
-    bigRagdollButton.MouseButton1Click:Connect(function()
-        enabled = not enabled
-        
-        TweenService:Create(
-            bigRagdollButton,
-            TweenInfo.new(0.15),
-            {BackgroundColor3 = enabled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(220,20,60)}
-        ):Play()
-    end)
-
-    -- Удар по клику мыши
-    Mouse.Button1Down:Connect(function()
-        if enabled then
-            performRagdollHit()
-        end
-    end)
-end
--- === Near Player (по линии взгляда, 1 удар/сек) ===
-local nearPlayerButton = buttons["Near Player"]
-
-do
-    local enabled = false
-    local Player = game.Players.LocalPlayer
-    local RunService = game:GetService("RunService")
-    local TweenService = game:GetService("TweenService")
-    local Players = game:GetService("Players")
-
-    local lastHitTime = 0 -- время последнего удара
-
-    -- Переключение кнопки
-    nearPlayerButton.MouseButton1Click:Connect(function()
-        enabled = not enabled
-        TweenService:Create(
-            nearPlayerButton,
-            TweenInfo.new(0.15),
-            {BackgroundColor3 = enabled and Color3.fromRGB(0,170,0) or Color3.fromRGB(220,20,60)}
-        ):Play()
-    end)
-
-    -- Функция удара Glitched Slap
-    local function hitNearbyPlayer(target)
-        local currentTime = tick()
-        if currentTime - lastHitTime < 1 then return end -- 1 сек задержка
-        lastHitTime = currentTime
-
-        local character = Player.Character
-        if not character or not target.Character then return end
-
-        local backpack = Player:WaitForChild("Backpack")
-        local bat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
-        local glitch = backpack:FindFirstChild("Glitched Slap") or character:FindFirstChild("Glitched Slap")
-        if not bat or not glitch then return end
-
-        if bat.Parent == character then bat.Parent = backpack end
-        glitch.Parent = character
-
-        if glitch:FindFirstChild("Activate") then
-            glitch.Activate:Fire()
-        else
-            glitch:Activate()
-        end
-
-        task.delay(0.001, function()
-            if glitch.Parent == character then glitch.Parent = backpack end
-            bat.Parent = character
-        end)
-    end
-
-    -- Проверка игроков в поле зрения
-    RunService.Heartbeat:Connect(function()
-        if enabled then
-            local char = Player.Character
+            local char = getChar()
             if not char then return end
             local hrp = char:FindFirstChild("HumanoidRootPart")
-            local head = char:FindFirstChild("Head")
-            if not hrp or not head then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hrp or not hum then return end
+            local move = hum.MoveDirection
+            if move.Magnitude > 0.1 then
+                hrp.AssemblyLinearVelocity = Vector3.new(move.Unit.X*baseSpeed, hrp.AssemblyLinearVelocity.Y, move.Unit.Z*baseSpeed)
+            else
+                hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+            end
+        end)
+    end
 
-            local lookDir = head.CFrame.LookVector -- направление взгляда
-            local origin = hrp.Position
+    local function stopSpeed()
+        if speedConn then speedConn:Disconnect() speedConn = nil end
+        local char = getChar()
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local hrp = char.HumanoidRootPart
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+        end
+    end
 
-            for _, plr in pairs(Players:GetPlayers()) do
-                if plr ~= Player and plr.Character then
-                    local targetHRP = plr.Character:FindFirstChild("HumanoidRootPart")
-                    if targetHRP then
-                        local toTarget = targetHRP.Position - origin
-                        local distance = toTarget.Magnitude
-                        if distance <= 8 then
-                            -- угол между взглядом и направлением до цели
-                            local angle = math.acos(lookDir:Dot(toTarget.Unit))
-                            if angle <= math.rad(45) then -- 45° впереди
-                                hitNearbyPlayer(plr)
-                            end
-                        end
+    speedBtn.MouseButton1Click:Connect(function()
+        speedActive = not speedActive
+        if speedActive then
+            startSpeed()
+        else
+            stopSpeed()
+        end
+        setButtonActiveVisual("Speed Booster", speedActive)
+    end)
+    setButtonActiveVisual("Speed Booster", false)
+end
+
+-- === Перетаскивание окна (таскается за любую часть окна) ===
+do
+    local dragging = false
+    local dragStart = Vector2.new()
+    local startPos = window.Position
+
+    window.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = window.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            window.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- === Big Ragdoll логика ===
+local bigEnabled = false
+local bigBtn = buttons["Big Ragdoll"]
+
+local function performRagdollHit()
+    local character = player.Character
+    if not character then return end
+    local backpack = player:FindFirstChild("Backpack") or player:WaitForChild("Backpack")
+    local bat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
+    local glitch = backpack:FindFirstChild("Glitched Slap") or character:FindFirstChild("Glitched Slap")
+    if not bat or not glitch then return end
+
+    if bat.Parent == character then
+        bat.Parent = backpack
+    end
+    glitch.Parent = character
+
+    if glitch:FindFirstChild("Activate") then
+        glitch.Activate:Fire()
+    else
+        pcall(function() glitch:Activate() end)
+    end
+
+    task.delay(0.001, function()
+        if glitch.Parent == character then
+            glitch.Parent = backpack
+        end
+        if bat.Parent ~= character then
+            bat.Parent = character
+        end
+    end)
+end
+
+bigBtn.MouseButton1Click:Connect(function()
+    bigEnabled = not bigEnabled
+    setButtonActiveVisual("Big Ragdoll", bigEnabled)
+end)
+
+-- Клик мыши: если bigEnabled и Near Player не подавляет — делаем performRagdollHit
+local function isNearPlayerSuppressing()
+    local nearActive = (buttons["Near Player"] and (buttons["Near Player"].BackgroundColor3 == Color3.fromRGB(0,170,0)))
+    if not nearActive then return false end
+    -- проверяем цель перед игроком в 10 студий (угол ±45°)
+    local char = player.Character
+    if not char then return false end
+    local head = char:FindFirstChild("Head")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not head or not hrp then return false end
+    local origin = hrp.Position
+    local look = head.CFrame.LookVector
+    for _, pl in pairs(Players:GetPlayers()) do
+        if pl ~= player and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart") then
+            local targetPos = pl.Character.HumanoidRootPart.Position
+            local toTarget = targetPos - origin
+            if toTarget.Magnitude <= 10 then
+                local angle = math.acos(math.clamp(look:Dot(toTarget.Unit), -1, 1))
+                if angle <= math.rad(45) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local mouse = player:GetMouse()
+mouse.Button1Down:Connect(function()
+    if bigEnabled and not isNearPlayerSuppressing() then
+        performRagdollHit()
+    end
+end)
+
+-- === Near Player (по линии взгляда, 1 удар/сек) ===
+local nearEnabled = false
+local nearBtn = buttons["Near Player"]
+local lastNearHit = 0
+
+local function hitNearby(plr)
+    local now = tick()
+    if now - lastNearHit < 1 then return end
+    lastNearHit = now
+
+    local character = player.Character
+    if not character or not plr.Character then return end
+    local backpack = player:FindFirstChild("Backpack") or player:WaitForChild("Backpack")
+    local bat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
+    local glitch = backpack:FindFirstChild("Glitched Slap") or character:FindFirstChild("Glitched Slap")
+    if not bat or not glitch then return end
+
+    if bat.Parent == character then
+        bat.Parent = backpack
+    end
+    glitch.Parent = character
+
+    if glitch:FindFirstChild("Activate") then
+        glitch.Activate:Fire()
+    else
+        pcall(function() glitch:Activate() end)
+    end
+
+    task.delay(0.001, function()
+        if glitch.Parent == character then
+            glitch.Parent = backpack
+        end
+        if bat.Parent ~= character then
+            bat.Parent = character
+        end
+    end)
+end
+
+nearBtn.MouseButton1Click:Connect(function()
+    nearEnabled = not nearEnabled
+    setButtonActiveVisual("Near Player", nearEnabled)
+end)
+
+-- Heartbeat: проверяем игроков в поле зрения (10 studs, ±45°)
+RunService.Heartbeat:Connect(function()
+    if not nearEnabled then return end
+    local char = player.Character
+    if not char then return end
+    local head = char:FindFirstChild("Head")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not head or not hrp then return end
+    local origin = hrp.Position
+    local lookDir = head.CFrame.LookVector
+
+    for _, pl in pairs(Players:GetPlayers()) do
+        if pl ~= player and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart") then
+            local targetPos = pl.Character.HumanoidRootPart.Position
+            local toTarget = targetPos - origin
+            if toTarget.Magnitude <= 10 then
+                local angle = math.acos(math.clamp(lookDir:Dot(toTarget.Unit), -1, 1))
+                if angle <= math.rad(45) then
+                    hitNearby(pl)
+                end
+            end
+        end
+    end
+end)
+
+-- === BIND handling (TextBoxes + Enter to set / key toggles) ===
+do
+    local typing = false
+    local activeTextBox = nil
+
+    local function normalizeBindText(s)
+        if not s then return "" end
+        s = tostring(s):gsub("^%s*(.-)%s*$", "%1") -- trim
+        return s:upper()
+    end
+
+    -- Setup TextBoxes behavior
+    for name, tb in pairs(bindBoxes) do
+        tb.FocusLost:Connect(function(enterPressed)
+            typing = false
+            activeTextBox = nil
+            if enterPressed then
+                local txt = normalizeBindText(tb.Text)
+                -- accept empty to clear
+                binds[name] = txt
+                tb.Text = txt
+            else
+                tb.Text = binds[name] or ""
+            end
+        end)
+        tb.Focused:Connect(function()
+            typing = true
+            activeTextBox = tb
+            tb.Text = ""
+        end)
+    end
+
+    -- InputBegan for toggling binds (only when not typing)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if typing then return end
+        -- only handle keyboard keys
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        local keyName = tostring(input.KeyCode):gsub("Enum.KeyCode.", ""):upper()
+
+        for actionName, bindStr in pairs(binds) do
+            if bindStr and bindStr ~= "" then
+                -- compare normalized forms
+                local norm = normalizeBindText(bindStr)
+                if norm == keyName or norm == keyName:sub(1, #norm) then
+                    -- toggle corresponding action
+                    if actionName == "Big Ragdoll" then
+                        bigEnabled = not bigEnabled
+                        setButtonActiveVisual("Big Ragdoll", bigEnabled)
+                    elseif actionName == "Near Player" then
+                        nearEnabled = not nearEnabled
+                        setButtonActiveVisual("Near Player", nearEnabled)
                     end
                 end
             end
         end
     end)
 end
+
+-- === Инициализация визуалок (везде нейтральный цвет, активные будут зелёными) ===
+for name, btn in pairs(buttons) do
+    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+end
+setButtonActiveVisual("HitBox Visible", false)
+setButtonActiveVisual("Speed Booster", false)
+setButtonActiveVisual("Big Ragdoll", false)
+setButtonActiveVisual("Near Player", false)
+
+-- === Иконка и открытие окна ===
+icon.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        -- toggle window visibility
+        if window.Visible then
+            window:TweenSizeAndPosition(UDim2.new(0,0,0,0), window.Position, Enum.EasingDirection.In, Enum.EasingStyle.Quint, 0.18, true)
+            task.wait(0.18)
+            window.Visible = false
+        else
+            window.Visible = true
+            window.Size = UDim2.new(0,0,0,0)
+            window:TweenSizeAndPosition(UDim2.new(0,230,0,300), UDim2.new(0.5,0,0.5,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quint, 0.22, true)
+        end
+    end
+end)
+
+-- RightShift toggle also works
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == Enum.KeyCode.RightShift then
+        if window.Visible then
+            window:TweenSizeAndPosition(UDim2.new(0,0,0,0), window.Position, Enum.EasingDirection.In, Enum.EasingStyle.Quint, 0.18, true)
+            task.wait(0.18)
+            window.Visible = false
+        else
+            window.Visible = true
+            window.Size = UDim2.new(0,0,0,0)
+            window:TweenSizeAndPosition(UDim2.new(0,230,0,300), UDim2.new(0.5,0,0.5,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quint, 0.22, true)
+        end
+    end
+end)
