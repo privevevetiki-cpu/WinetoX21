@@ -1,4 +1,4 @@
--- LocalScript в StarterGui (полный рабочий скрипт)
+-- LocalScript в StarterGui
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -6,17 +6,15 @@ local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 
--- LocalScript в StarterGui
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local player = Players.LocalPlayer
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "SlapGUI"
-gui.Parent = player:WaitForChild("PlayerGui")
--- УДАЛЕНИЕ ПРЕДЫДУЩЕГО GUI, если уже есть
+-- Удаляем старый GUI
 local oldGui = player:WaitForChild("PlayerGui"):FindFirstChild("SlapGUI")
 if oldGui then oldGui:Destroy() end
+
+-- === Создаём GUI ===
+local gui = Instance.new("ScreenGui")
+gui.Name = "SlapGUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
 -- === Список слэпов ===
 local slapList = {
@@ -32,11 +30,11 @@ local SelectedSlap = slapList[1]
 
 -- === Кнопка открытия меню ===
 local openBtn = Instance.new("TextButton")
-openBtn.Size = UDim2.new(0, 60, 0, 60)
-openBtn.Position = UDim2.new(0, 120, 0.5, -20)
+openBtn.Size = UDim2.new(0, 180, 0, 40)
+openBtn.Position = UDim2.new(0, 20, 0, 20)
 openBtn.BackgroundTransparency = 0.5
-openBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-openBtn.Text = "Select slap (Near Slap)"
+openBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+openBtn.Text = "Select Slap"
 openBtn.TextColor3 = Color3.fromRGB(255,255,255)
 openBtn.TextScaled = true
 openBtn.Font = Enum.Font.Arcade
@@ -46,8 +44,8 @@ Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0, 8)
 -- === Меню слэпов ===
 local slapMenu = Instance.new("Frame")
 slapMenu.Size = UDim2.new(0, 200, 0, #slapList*38 + 40)
-slapMenu.Position = UDim2.new(0.2, 0, 0.5, -((#slapList*38 + 40)/2))
-slapMenu.BackgroundTransparency = 1
+slapMenu.Position = UDim2.new(0, 20, 0, 70)
+slapMenu.BackgroundTransparency = 0.9
 slapMenu.BackgroundColor3 = Color3.fromRGB(20,20,20)
 slapMenu.Visible = false
 slapMenu.Parent = gui
@@ -64,7 +62,7 @@ title.Font = Enum.Font.Arcade
 title.TextStrokeTransparency = 0.7
 title.Parent = slapMenu
 
--- Список слэпов
+-- Кнопки слэпов
 for i, slapName in ipairs(slapList) do
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.9, 0, 0, 32)
@@ -89,45 +87,18 @@ for i, slapName in ipairs(slapList) do
     end)
 end
 
--- === Перетаскивание меню ===
-do
-    local dragging = false
-    local dragStart
-    local startPos
-    slapMenu.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = slapMenu.Position
-        end
-    end)
-    slapMenu.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            slapMenu.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-end
-
 -- === Плавное открытие/закрытие меню ===
 local menuOpen = false
 openBtn.MouseButton1Click:Connect(function()
     menuOpen = not menuOpen
     slapMenu.Visible = true
-
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local goal = {}
     if menuOpen then
         goal.BackgroundTransparency = 0.3
     else
-        goal.BackgroundTransparency = 1
+        goal.BackgroundTransparency = 0.9
     end
-
     local tween = TweenService:Create(slapMenu, tweenInfo, goal)
     tween:Play()
     tween.Completed:Connect(function()
@@ -136,7 +107,6 @@ openBtn.MouseButton1Click:Connect(function()
         end
     end)
 end)
-
 
 -- УДАЛЕНИЕ ПРЕДЫДУЩЕГО GUI, если уже есть
 local oldGui = player:WaitForChild("PlayerGui"):FindFirstChild("LuaGUI")
@@ -171,7 +141,7 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "PvP 0.6.5"
+iconText.Text = "PvP 0.6.1"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
