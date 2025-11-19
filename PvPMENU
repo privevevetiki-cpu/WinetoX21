@@ -165,7 +165,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 40)
 title.Position = UDim2.new(0,0,0,0)
 title.BackgroundTransparency = 1
-title.Text = "PvP Menu Beta и не надо после плаки плаки делаеть если скрипт не робит он в бете еще >:("
+title.Text = "PvP Menu Beta 0.6.7 NEED A GOOD PING FOR THE FUNCTIONS TO WORK PROPERLY"
 title.Font = Enum.Font.Arcade
 title.TextScaled = true
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -249,7 +249,7 @@ local buttonNames = {
     "Big Ragdoll 0.2",
     "Near Player 1.3",
     "Auto Grab 0.1",
-    "Show Hitboxes 0.2",
+    "Hitboxes Near Player 0.2",
     "Button 7",
     "Button 8",
     "Button 9"
@@ -693,7 +693,7 @@ local showHitboxes = false
 
 -- кнопки
 local nearBtn = buttons["Near Player 1.3"]
-local showBtn = buttons["Show Hitboxes 0.2"]  -- ОТДЕЛЬНАЯ КНОПКА
+local showBtn = buttons["Hitboxes Near Player 0.2"]  -- ОТДЕЛЬНАЯ КНОПКА
 
 local lastNearHit = 0
 
