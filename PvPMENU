@@ -141,15 +141,44 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "PvP 0.6.8"
+iconText.Text = "PvP 0.7.0"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
 iconText.Parent = icon
+-- === ДРАГ ДЛЯ ИКОНКИ ===
+local dragging = false
+local dragStart
+local startPos
+
+icon.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = icon.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        icon.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
 
 -- === ОКНО ===
 local window = Instance.new("Frame")
-window.Size = UDim2.new(0, 230, 0, 300)
+window.Size = UDim2.new(0, 230, 0, 350)
 window.Position = UDim2.new(0.5, 0, 0.5, 0)
 window.AnchorPoint = Vector2.new(0.5, 0.5)
 window.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -165,7 +194,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 40)
 title.Position = UDim2.new(0,0,0,0)
 title.BackgroundTransparency = 1
-title.Text = "PvP Menu Beta We need a good ping for the functions to work properly."
+title.Text = "PvP Menu Beta We need a good ping for the functions to work properly"
 title.Font = Enum.Font.Arcade
 title.TextScaled = true
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -188,7 +217,7 @@ layout.Parent = buttonsFrame
 local buttons = {}        -- кнопки (TextButton)
 local bindBoxes = {}      -- TextBox для биндов (только Big Ragdoll и Near Player)
 local binds = {           -- хранение биндов (строка)
-    ["Big Ragdoll 0.2"] = "",
+    ["Big Ragdoll 0.5"] = "",
     ["Near Player 1.3"] = ""
 }
 
@@ -246,7 +275,7 @@ end
 local buttonNames = {
     "HitBox Visible 0.4",
     "Speed Booster 0.3",
-    "Big Ragdoll 0.2",
+    "Big Ragdoll 0.5",
     "Near Player 1.3",
     "Auto Grab 0.2(NO WORK)",
     "Show Hitboxes 0.2",
@@ -256,7 +285,7 @@ local buttonNames = {
 }
 
 for _, name in ipairs(buttonNames) do
-    local showBind = (name == "Big Ragdoll 0.2" or name == "Near Player 1.3")
+    local showBind = (name == "Big Ragdoll 0.5" or name == "Near Player 1.3")
     local btn, tb = makeButtonRow(name, showBind)
     buttons[name] = btn
     if tb then bindBoxes[name] = tb end
@@ -592,77 +621,80 @@ do
     end)
 end
 
--- === Big Ragdoll логика ===
+---------------------------------------------------------
+-- === Big Ragdoll логика (удар взят из Near Player) ===
+---------------------------------------------------------
+
 local bigEnabled = false
-local bigBtn = buttons["Big Ragdoll 0.2"]
+local bigBtn = buttons["Big Ragdoll 0.5"]
+
+local lastBigHit = 0
 
 local function performRagdollHit()
+    local now = tick()
+    if now - lastBigHit < 0.8 then return end
+    lastBigHit = now
+
     local character = player.Character
     if not character then return end
+
     local backpack = player:FindFirstChild("Backpack") or player:WaitForChild("Backpack")
+
+    ---------------------------------------------------------
+    --  УДАР (ПОЛНОСТЬЮ ВЗЯТ ИЗ hitNearbyInvisible)
+    ---------------------------------------------------------
     local bat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
-    local glitch = backpack:FindFirstChild("Glitched Slap") or character:FindFirstChild("Glitched Slap")
+    local glitch = backpack:FindFirstChild(SelectedSlap) or character:FindFirstChild(SelectedSlap)
+
     if not bat or not glitch then return end
 
-    if bat.Parent == character then
-        bat.Parent = backpack
-    end
     glitch.Parent = character
-
     if glitch:FindFirstChild("Activate") then
         glitch.Activate:Fire()
     else
-        pcall(function() glitch:Activate() end)
+        pcall(function()
+            glitch:Activate()
+        end)
     end
+    glitch.Parent = backpack
 
-    task.delay(0.005, function()
-        if glitch.Parent == character then
-            glitch.Parent = backpack
-        end
-        if bat.Parent ~= character then
-            bat.Parent = character
-        end
-    end)
+    if bat.Parent ~= character then
+        bat.Parent = character
+    end
 end
 
+
+---------------------------------------------------------
+--  Кнопка включения Big Ragdoll
+---------------------------------------------------------
 bigBtn.MouseButton1Click:Connect(function()
     bigEnabled = not bigEnabled
-    setButtonActiveVisual("Big Ragdoll 0.2", bigEnabled)
+    setButtonActiveVisual("Big Ragdoll 0.5", bigEnabled)
 end)
 
--- Клик мыши: если bigEnabled и Near Player не подавляет — делаем performRagdollHit
+
+---------------------------------------------------------
+--  Проверка подавления Near Player
+---------------------------------------------------------
 local function isNearPlayerSuppressing()
-    local nearActive = (buttons["Near Player 1.3"] and (buttons["Near Player 1.3"].BackgroundColor3 == Color3.fromRGB(0,170,0)))
-    if not nearActive then return false end
-    -- проверяем цель перед игроком в 10 студий (угол ±45°)
-    local char = player.Character
-    if not char then return false end
-    local head = char:FindFirstChild("Head")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not head or not hrp then return false end
-    local origin = hrp.Position
-    local look = head.CFrame.LookVector
-    for _, pl in pairs(Players:GetPlayers()) do
-        if pl ~= player and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart") then
-            local targetPos = pl.Character.HumanoidRootPart.Position
-            local toTarget = targetPos - origin
-            if toTarget.Magnitude <= 8 then
-                local angle = math.acos(math.clamp(look:Dot(toTarget.Unit), -1, 1))
-                if angle <= math.rad(45) then
-                    return true
-                end
-            end
-        end
-    end
-    return false
+    local nearBtn = buttons["Near Player 1.3"]
+    if not nearBtn then return false end
+
+    return nearBtn.BackgroundColor3 == Color3.fromRGB(0,170,0)
 end
 
+
+---------------------------------------------------------
+--  Клик мыши
+---------------------------------------------------------
 local mouse = player:GetMouse()
+
 mouse.Button1Down:Connect(function()
     if bigEnabled and not isNearPlayerSuppressing() then
         performRagdollHit()
     end
 end)
+
 -- Лаг-компенсация позиции игрока
 local function GetPredictedPosition(character)
     if not character then return nil end
@@ -952,9 +984,9 @@ do
 
                 -- Чёткое совпадение
                 if norm == keyName then
-                    if actionName == "Big Ragdoll 0.2" then
+                    if actionName == "Big Ragdoll 0.5" then
                         bigEnabled = not bigEnabled
-                        setButtonActiveVisual("Big Ragdoll 0.2", bigEnabled)
+                        setButtonActiveVisual("Big Ragdoll 0.5", bigEnabled)
 
                     elseif actionName == "Near Player 1.3" then
                         nearEnabled = not nearEnabled
@@ -972,7 +1004,7 @@ for name, btn in pairs(buttons) do
 end
 setButtonActiveVisual("HitBox Visible 0.4", false)
 setButtonActiveVisual("Speed Booster 0.3", false)
-setButtonActiveVisual("Big Ragdoll 0.2", false)
+setButtonActiveVisual("Big Ragdoll 0.5", false)
 setButtonActiveVisual("Near Player 1.3", false)
 
 -- === Иконка и открытие окна ===
