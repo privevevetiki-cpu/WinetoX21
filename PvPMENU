@@ -141,7 +141,7 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "PvP 0.7.0"
+iconText.Text = "PvP 0.7.1"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -630,6 +630,9 @@ local bigBtn = buttons["Big Ragdoll 0.5"]
 
 local lastBigHit = 0
 
+---------------------------------------------------------
+--  Функция удара
+---------------------------------------------------------
 local function performRagdollHit()
     local now = tick()
     if now - lastBigHit < 0.8 then return end
@@ -641,7 +644,7 @@ local function performRagdollHit()
     local backpack = player:FindFirstChild("Backpack") or player:WaitForChild("Backpack")
 
     ---------------------------------------------------------
-    --  УДАР (ПОЛНОСТЬЮ ВЗЯТ ИЗ hitNearbyInvisible)
+    --  УДАР (взято из hitNearbyInvisible)
     ---------------------------------------------------------
     local bat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
     local glitch = backpack:FindFirstChild(SelectedSlap) or character:FindFirstChild(SelectedSlap)
@@ -649,6 +652,7 @@ local function performRagdollHit()
     if not bat or not glitch then return end
 
     glitch.Parent = character
+
     if glitch:FindFirstChild("Activate") then
         glitch.Activate:Fire()
     else
@@ -656,21 +660,13 @@ local function performRagdollHit()
             glitch:Activate()
         end)
     end
+
     glitch.Parent = backpack
 
     if bat.Parent ~= character then
         bat.Parent = character
     end
 end
-
-
----------------------------------------------------------
---  Кнопка включения Big Ragdoll
----------------------------------------------------------
-bigBtn.MouseButton1Click:Connect(function()
-    bigEnabled = not bigEnabled
-    setButtonActiveVisual("Big Ragdoll 0.5", bigEnabled)
-end)
 
 
 ---------------------------------------------------------
@@ -682,6 +678,31 @@ local function isNearPlayerSuppressing()
 
     return nearBtn.BackgroundColor3 == Color3.fromRGB(0,170,0)
 end
+
+
+---------------------------------------------------------
+--  Кнопка включения Big Ragdoll
+---------------------------------------------------------
+bigBtn.MouseButton1Click:Connect(function()
+    bigEnabled = not bigEnabled
+    setButtonActiveVisual("Big Ragdoll 0.5", bigEnabled)
+
+    ---------------------------------------------------------
+    --  ЕСЛИ Big Ragdoll ВЫКЛЮЧЕН — ВЕРНУТЬ НАСТОЯЩИЙ BAT
+    ---------------------------------------------------------
+    if not bigEnabled then
+        local character = player.Character
+        if not character then return end
+
+        local backpack = player:FindFirstChild("Backpack") or player:WaitForChild("Backpack")
+
+        -- находим обычный bat
+        local realBat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
+        if realBat then
+            realBat.Parent = character
+        end
+    end
+end)
 
 
 ---------------------------------------------------------
