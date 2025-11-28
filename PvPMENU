@@ -141,7 +141,7 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "PvP 0.7.6"
+iconText.Text = "PvP 0.7.8"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -217,7 +217,7 @@ layout.Parent = buttonsFrame
 local buttons = {}        -- кнопки (TextButton)
 local bindBoxes = {}      -- TextBox для биндов (только Big Ragdoll и Near Player)
 local binds = {           -- хранение биндов (строка)
-    ["Big Ragdoll 0.5"] = "",
+    ["Big Ragdoll 0.6"] = "",
 	["Streamer Mode 1.0"] = "",
     ["Near Player 1.3"] = ""
 }
@@ -276,8 +276,8 @@ end
 local buttonNames = {
     "HitBox Visible 0.4",
     "Speed Booster 0.4",
-    "Big Ragdoll 0.5",
-    "Near Player 1.3",
+    "Big Ragdoll 0.6",
+    "Near Player 1.4",
     "Auto Grab 0.2(NO WORK)",
     "Show Hitboxes 0.2",
     "Visible ping",
@@ -286,7 +286,7 @@ local buttonNames = {
 }
 
 for _, name in ipairs(buttonNames) do
-    local showBind = (name == "Big Ragdoll 0.5" or name == "Near Player 1.3" or name == "Streamer Mode 1.0 (NEED BIND)")
+    local showBind = (name == "Big Ragdoll 0.6" or name == "Near Player 1.4" or name == "Streamer Mode 1.0 (NEED BIND)")
     local btn, tb = makeButtonRow(name, showBind)
     buttons[name] = btn
     if tb then bindBoxes[name] = tb end
@@ -612,13 +612,17 @@ end
 -- === Big Ragdoll логика (удар взят из Near Player) ===
 ---------------------------------------------------------
 
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
 local bigEnabled = false
-local bigBtn = buttons["Big Ragdoll 0.5"]
+local bigBtn = buttons["Big Ragdoll 0.6"]
 
 local lastBigHit = 0
 
+
 ---------------------------------------------------------
---  Функция удара
+--  Функция удара + проигрывание анимации
 ---------------------------------------------------------
 local function performRagdollHit()
     local now = tick()
@@ -627,6 +631,9 @@ local function performRagdollHit()
 
     local character = player.Character
     if not character then return end
+
+    local humanoid = character:FindFirstChildWhichIsA("Humanoid")
+    if not humanoid then return end
 
     local backpack = player:FindFirstChild("Backpack") or player:WaitForChild("Backpack")
 
@@ -653,7 +660,18 @@ local function performRagdollHit()
     if bat.Parent ~= character then
         bat.Parent = character
     end
+
+
+    ---------------------------------------------------------
+    --  === Кастомная анимация удара ===
+    ---------------------------------------------------------
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://90613325915364"
+
+    local track = humanoid:LoadAnimation(anim)
+    track:Play()
 end
+
 
 
 ---------------------------------------------------------
@@ -667,15 +685,16 @@ local function isNearPlayerSuppressing()
 end
 
 
+
 ---------------------------------------------------------
 --  Кнопка включения Big Ragdoll
 ---------------------------------------------------------
 bigBtn.MouseButton1Click:Connect(function()
     bigEnabled = not bigEnabled
-    setButtonActiveVisual("Big Ragdoll 0.5", bigEnabled)
+    setButtonActiveVisual("Big Ragdoll 0.6", bigEnabled)
 
     ---------------------------------------------------------
-    --  ЕСЛИ Big Ragdoll ВЫКЛЮЧЕН — ВЕРНУТЬ НАСТОЯЩИЙ BAT
+    --  ЕСЛИ Big Ragdoll выключен — вернуть обычный Bat
     ---------------------------------------------------------
     if not bigEnabled then
         local character = player.Character
@@ -683,7 +702,6 @@ bigBtn.MouseButton1Click:Connect(function()
 
         local backpack = player:FindFirstChild("Backpack") or player:WaitForChild("Backpack")
 
-        -- находим обычный bat
         local realBat = backpack:FindFirstChild("Bat") or character:FindFirstChild("Bat")
         if realBat then
             realBat.Parent = character
@@ -691,6 +709,37 @@ bigBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+
+
+---------------------------------------------------------
+--  Клик мыши = удар + анимация
+---------------------------------------------------------
+local mouse = player:GetMouse()
+
+mouse.Button1Down:Connect(function()
+    if bigEnabled and not isNearPlayerSuppressing() then
+        performRagdollHit()
+    end
+end)
+
+
+
+---------------------------------------------------------
+--  Лаг-компенсация позиции
+---------------------------------------------------------
+local function GetPredictedPosition(character)
+    if not character then return nil end
+
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    local vel = hrp.AssemblyLinearVelocity  
+    local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000  
+
+    local predicted = hrp.Position + vel * ping
+
+    return predicted
+end
 
 ---------------------------------------------------------
 --  Клик мыши
@@ -732,7 +781,7 @@ local nearEnabled = false
 local showHitboxes = false
 
 -- кнопки
-local nearBtn = buttons["Near Player 1.3"]
+local nearBtn = buttons["Near Player 1.4"]
 local showBtn = buttons["Show Hitboxes 0.2"]  -- ОТДЕЛЬНАЯ КНОПКА
 
 local lastNearHit = 0
@@ -917,7 +966,7 @@ end
 ---------------------------------------------------------
 nearBtn.MouseButton1Click:Connect(function()
     nearEnabled = not nearEnabled
-    setButtonActiveVisual("Near Player 1.3", nearEnabled)
+    setButtonActiveVisual("Near Player 1.4", nearEnabled)
 
     if not nearEnabled then
         if partFront then partFront:Destroy() partFront = nil end
@@ -1014,15 +1063,15 @@ do
                 if normalizeBindText(bindKey) == keyName then
 
                     -- === Big Ragdoll ===
-                    if actionName == "Big Ragdoll 0.5" then
+                    if actionName == "Big Ragdoll 0.6" then
                         bigEnabled = not bigEnabled
-                        setButtonActiveVisual("Big Ragdoll 0.5", bigEnabled)
+                        setButtonActiveVisual("Big Ragdoll 0.6", bigEnabled)
                     end
 
                     -- === Near Player ===
-                    if actionName == "Near Player 1.3" then
+                    if actionName == "Near Player 1.4" then
                         nearEnabled = not nearEnabled
-                        setButtonActiveVisual("Near Player 1.3", nearEnabled)
+                        setButtonActiveVisual("Near Player 1.4", nearEnabled)
                     end
 
                     -- === STREAMER MODE ===
@@ -1041,8 +1090,8 @@ for name, btn in pairs(buttons) do
 end
 setButtonActiveVisual("HitBox Visible 0.4", false)
 setButtonActiveVisual("Speed Booster 0.4", false)
-setButtonActiveVisual("Big Ragdoll 0.5", false)
-setButtonActiveVisual("Near Player 1.3", false)
+setButtonActiveVisual("Big Ragdoll 0.6", false)
+setButtonActiveVisual("Near Player 1.4", false)
 
 -- === Иконка и открытие окна ===
 icon.InputBegan:Connect(function(input)
@@ -1276,7 +1325,7 @@ task.spawn(function()
         task.wait(0.5)
 
         if pingEnabled then
-            local ping = math.clamp(Players.LocalPlayer:GetNetworkPing() * 1000, 0, 250)
+            local ping = math.clamp(Players.LocalPlayer:GetNetworkPing() * 1000, 0, 1488)
             ping = math.floor(ping)
 
             pingText.Text = "Ping: " .. ping
@@ -1387,4 +1436,3 @@ do
         end
     end)
 end
-
