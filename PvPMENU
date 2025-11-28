@@ -141,7 +141,7 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "PvP 0.7.1"
+iconText.Text = "PvP 0.7.5"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -218,6 +218,7 @@ local buttons = {}        -- кнопки (TextButton)
 local bindBoxes = {}      -- TextBox для биндов (только Big Ragdoll и Near Player)
 local binds = {           -- хранение биндов (строка)
     ["Big Ragdoll 0.5"] = "",
+	["Streamer Mode 1.0"] = "",
     ["Near Player 1.3"] = ""
 }
 
@@ -274,18 +275,18 @@ end
 
 local buttonNames = {
     "HitBox Visible 0.4",
-    "Speed Booster 0.3",
+    "Speed Booster 0.4",
     "Big Ragdoll 0.5",
     "Near Player 1.3",
     "Auto Grab 0.2(NO WORK)",
     "Show Hitboxes 0.2",
     "Visible ping",
-    "Button 8",
+    "Streamer Mode 1.0 (NEED BIND)",
     "Button 9"
 }
 
 for _, name in ipairs(buttonNames) do
-    local showBind = (name == "Big Ragdoll 0.5" or name == "Near Player 1.3")
+    local showBind = (name == "Big Ragdoll 0.5" or name == "Near Player 1.3" or name == "Streamer Mode 1.0 (NEED BIND)")
     local btn, tb = makeButtonRow(name, showBind)
     buttons[name] = btn
     if tb then bindBoxes[name] = tb end
@@ -469,7 +470,41 @@ do
         end)
     end
 end
+-- === Streamer Mode 1.0 ===
 
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local buttons = buttons -- твоя таблица кнопок
+local active = false
+
+-- включение визуала кнопки (если у тебя есть такая функция)
+local function safeSetButton(btnName, state)
+    if typeof(setButtonActiveVisual) == "function" then
+        setButtonActiveVisual(btnName, state)
+    end
+end
+
+-- включение/выключение стример режима
+local function toggleStreamerMode()
+    active = not active
+    safeSetButton("Streamer Mode 1.0 (NEED BIND)", active)
+
+    for _, gui in ipairs(PlayerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and (gui.Name == "LuaGUI" or gui.Name == "SlapGUI") then
+            gui.Enabled = not active
+        end
+    end
+end
+
+-- привязка к кнопке
+local btn = buttons["Streamer Mode 1.0 (NEED BIND)"]
+if btn then
+    btn.MouseButton1Click:Connect(toggleStreamerMode)
+else
+    warn("[Streamer Mode 1.0 (NEED BIND)] Кнопка 'Streamer Mode 1.0 (NEED BIND)' не найдена!")
+end
 -- === HITBOX Visible + NearPlayer зона (один прямоугольник) ===
 do
     local PlayersSvc = Players
@@ -540,54 +575,6 @@ do
     end)
 end
 
--- === Speed Booster ===
-do
-    local speedBtn = buttons["Speed Booster 0.3"]
-    local speedActive = false
-    local speedConn = nil
-    local baseSpeed = 27
-
-    local function getChar()
-        return player.Character
-    end
-
-    local function startSpeed()
-        if speedConn then return end
-        speedConn = RunService.Heartbeat:Connect(function()
-            local char = getChar()
-            if not char then return end
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if not hrp or not hum then return end
-            local move = hum.MoveDirection
-            if move.Magnitude > 0.01 then
-                hrp.AssemblyLinearVelocity = Vector3.new(move.Unit.X*baseSpeed, hrp.AssemblyLinearVelocity.Y, move.Unit.Z*baseSpeed)
-            else
-                hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
-            end
-        end)
-    end
-
-    local function stopSpeed()
-        if speedConn then speedConn:Disconnect() speedConn = nil end
-        local char = getChar()
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local hrp = char.HumanoidRootPart
-            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
-        end
-    end
-
-    speedBtn.MouseButton1Click:Connect(function()
-        speedActive = not speedActive
-        if speedActive then
-            startSpeed()
-        else
-            stopSpeed()
-        end
-        setButtonActiveVisual("Speed Booster 0.3", speedActive)
-    end)
-    setButtonActiveVisual("Speed Booster 0.3", false)
-end
 
 -- === Перетаскивание окна (таскается за любую часть окна) ===
 do
@@ -960,6 +947,7 @@ end)
 do
     local typing = false
     local activeTextBox = nil
+    local PlayerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
     local function normalizeBindText(s)
         if not s then return "" end
@@ -967,51 +955,79 @@ do
         return s:upper()
     end
 
-    -- Setup TextBoxes behavior
+    -- === TEXTBOX SETUP ===
     for name, tb in pairs(bindBoxes) do
+        tb.Focused:Connect(function()
+            typing = true
+            activeTextBox = name
+            tb.Text = ""
+        end)
+
         tb.FocusLost:Connect(function(enterPressed)
             typing = false
             activeTextBox = nil
+
             if enterPressed then
                 local txt = normalizeBindText(tb.Text)
-                -- принять пустой – очистить
                 binds[name] = txt
                 tb.Text = txt
             else
                 tb.Text = binds[name] or ""
             end
         end)
-
-        tb.Focused:Connect(function()
-            typing = true
-            activeTextBox = tb
-            tb.Text = ""
-        end)
     end
 
-    -- НАДЁЖНОЕ InputBegan без глюков
+    -- === STREAMER MODE FUNCTION (всё в одном месте) ===
+    local function toggleStreamerMode()
+        local btn = buttons["Streamer Mode 1.0 (NEED BIND)"]
+        if not btn then return end
+
+        local isOn = (btn.BackgroundColor3 == Color3.fromRGB(0,170,0))
+        isOn = not isOn
+
+        -- визуал кнопки
+        if isOn then
+            btn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        end
+
+        -- скрытие GUI
+        for _, gui in ipairs(PlayerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and (gui.Name == "LuaGUI" or gui.Name == "SlapGUI") then
+                gui.Enabled = not isOn
+            end
+        end
+    end
+
+    -- === INPUT BEGAN ===
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if typing then return end
+        if gameProcessed then return end
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-        -- ЧИСТОЕ ИМЯ КЛАВИШИ
         local keyName = input.KeyCode.Name:upper()
-        if not keyName or keyName == "" then return end
+        if keyName == "" then return end
 
-        -- Перебираем все действия
-        for actionName, bindStr in pairs(binds) do
-            if bindStr and bindStr ~= "" then
-                local norm = normalizeBindText(bindStr)
+        for actionName, bindKey in pairs(binds) do
+            if bindKey and bindKey ~= "" then
+                if normalizeBindText(bindKey) == keyName then
 
-                -- Чёткое совпадение
-                if norm == keyName then
+                    -- === Big Ragdoll ===
                     if actionName == "Big Ragdoll 0.5" then
                         bigEnabled = not bigEnabled
                         setButtonActiveVisual("Big Ragdoll 0.5", bigEnabled)
+                    end
 
-                    elseif actionName == "Near Player 1.3" then
+                    -- === Near Player ===
+                    if actionName == "Near Player 1.3" then
                         nearEnabled = not nearEnabled
                         setButtonActiveVisual("Near Player 1.3", nearEnabled)
+                    end
+
+                    -- === STREAMER MODE ===
+                    if actionName == "Streamer Mode 1.0 (NEED BIND)" then
+                        toggleStreamerMode()
                     end
                 end
             end
@@ -1024,7 +1040,7 @@ for name, btn in pairs(buttons) do
     btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
 end
 setButtonActiveVisual("HitBox Visible 0.4", false)
-setButtonActiveVisual("Speed Booster 0.3", false)
+setButtonActiveVisual("Speed Booster 0.4", false)
 setButtonActiveVisual("Big Ragdoll 0.5", false)
 setButtonActiveVisual("Near Player 1.3", false)
 
@@ -1287,3 +1303,88 @@ buttons["Visible ping"].MouseButton1Click:Connect(function()
     pingFrame.Visible = pingEnabled
     setButtonActiveVisual("Visible ping", pingEnabled)
 end)
+
+
+-- === Speed Booster 0.3 ===
+do
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+
+    local speedBtn = buttons["Speed Booster 0.4"] -- <<== ЭТА КНОПКА И ЕСТЬ!
+    local speedConn
+    local baseSpeed = 27
+    local active = false
+
+    local function GetCharacter()
+        local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local HRP = Char:WaitForChild("HumanoidRootPart")
+        local Hum = Char:FindFirstChildOfClass("Humanoid")
+        return Char, HRP, Hum
+    end
+
+    local function getMovementInput()
+        local Char, HRP, Hum = GetCharacter()
+        if not Char or not HRP or not Hum then return Vector3.new(0,0,0) end
+        local moveVector = Hum.MoveDirection
+        if moveVector.Magnitude > 0.1 then
+            return Vector3.new(moveVector.X, 0, moveVector.Z).Unit
+        end
+        return Vector3.new(0,0,0)
+    end
+
+    local function startSpeedControl()
+        if speedConn then return end
+
+        speedConn = RunService.Heartbeat:Connect(function()
+            local Char, HRP, Hum = GetCharacter()
+            if not Char or not HRP or not Hum then return end
+
+            local inputDirection = getMovementInput()
+
+            if inputDirection.Magnitude > 0 then
+                HRP.AssemblyLinearVelocity = Vector3.new(
+                    inputDirection.X * baseSpeed,
+                    HRP.AssemblyLinearVelocity.Y,
+                    inputDirection.Z * baseSpeed
+                )
+            else
+                HRP.AssemblyLinearVelocity = Vector3.new(
+                    0,
+                    HRP.AssemblyLinearVelocity.Y,
+                    0
+                )
+            end
+        end)
+    end
+
+    local function stopSpeedControl()
+        if speedConn then 
+            speedConn:Disconnect()
+            speedConn = nil
+        end
+
+        local Char, HRP = GetCharacter()
+        if HRP then
+            HRP.AssemblyLinearVelocity = Vector3.new(
+                0,
+                HRP.AssemblyLinearVelocity.Y,
+                0
+            )
+        end
+    end
+
+    -- <<=== ВАЖНО! ПОДКЛЮЧЕНО ТОЛЬКО К speedBtn !!!
+    speedBtn.MouseButton1Click:Connect(function()
+        active = not active
+
+        if active then
+            startSpeedControl()
+            speedBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+        else
+            stopSpeedControl()
+            speedBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        end
+    end)
+end
+
