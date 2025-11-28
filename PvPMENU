@@ -141,7 +141,7 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "PvP 0.7.5"
+iconText.Text = "PvP 0.7.6"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -722,7 +722,7 @@ local function GetPredictedPosition(character)
 
     return predicted
 end
--- === Near Player + 2 хитбокса (трапеция) + отдельная кнопка Show Hitboxes ===
+-- === Near Player + 2 хитбокса (трапеция) + отдельная кнопка Show Hitboxes + анимация ===
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -742,7 +742,6 @@ local partBack
 
 local FRONT_SIZE = Vector3.new(10, 10, 8)
 local BACK_SIZE  = Vector3.new(6, 10, 6)
-
 
 ---------------------------------------------------------
 --                УДАР ПО ИГРОКУ
@@ -784,6 +783,13 @@ local function hitNearbyInvisible(plr)
     end
     glitch.Parent = backpack
 
+    -- === Проигрывание кастомной анимации ===
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://90613325915364"
+
+    local track = humanoid:LoadAnimation(anim)
+    track:Play()
+
     if bat.Parent ~= char then
         bat.Parent = char
     end
@@ -796,7 +802,6 @@ local function hitNearbyInvisible(plr)
         end
     end)
 end
-
 
 ---------------------------------------------------------
 --             СОЗДАНИЕ ХИТБОКСОВ
@@ -826,7 +831,6 @@ local function createParts()
         partBack.Parent = workspace
     end
 end
-
 
 ---------------------------------------------------------
 --            ОБНОВЛЕНИЕ ПОЗИЦИЙ ХИТБОКСОВ
@@ -861,7 +865,6 @@ local function updateParts()
     )
 end
 
-
 ---------------------------------------------------------
 --               ПОКАЗ / СКРЫТИЕ ХИТБОКСОВ
 ---------------------------------------------------------
@@ -874,7 +877,6 @@ local function updateHitboxVisibility()
         partBack.Transparency = showHitboxes and 0.3 or 1
     end
 end
-
 
 ---------------------------------------------------------
 --                 ПРОВЕРКА ИГРОКОВ
@@ -910,7 +912,6 @@ local function checkPlayers()
     end
 end
 
-
 ---------------------------------------------------------
 --                   КНОПКИ
 ---------------------------------------------------------
@@ -929,7 +930,6 @@ showBtn.MouseButton1Click:Connect(function()
     setButtonActiveVisual("Show Hitboxes 0.2", showHitboxes)
     updateHitboxVisibility()
 end)
-
 
 ---------------------------------------------------------
 --                 HEARTBEAT
@@ -1327,7 +1327,7 @@ do
         local Char, HRP, Hum = GetCharacter()
         if not Char or not HRP or not Hum then return Vector3.new(0,0,0) end
         local moveVector = Hum.MoveDirection
-        if moveVector.Magnitude > 0.1 then
+        if moveVector.Magnitude > 0.09 then
             return Vector3.new(moveVector.X, 0, moveVector.Z).Unit
         end
         return Vector3.new(0,0,0)
