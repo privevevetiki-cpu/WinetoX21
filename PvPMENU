@@ -141,7 +141,7 @@ iconStroke.Parent = icon
 local iconText = Instance.new("TextLabel")
 iconText.Size = UDim2.new(1, 0, 1, 0)
 iconText.BackgroundTransparency = 1
-iconText.Text = "PvP 0.8.0"
+iconText.Text = "PvP 0.8.3"
 iconText.TextScaled = true
 iconText.Font = Enum.Font.Arcade
 iconText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -277,6 +277,7 @@ end
 
 local buttonNames = {
     "HitBox Visible 0.4",
+	"Jump Booster 0.3",
     "Speed Booster 0.5",
     "Big Ragdoll 0.6",
     "Near Player 1.4",
@@ -284,7 +285,7 @@ local buttonNames = {
     "Show Hitboxes 0.2",
     "Visible ping",
     "Streamer Mode 1.0 (NEED BIND)",
-    "Button 9"
+    "Button 10"
 }
 
 for _, name in ipairs(buttonNames) do
@@ -850,7 +851,7 @@ local BACK_SIZE  = Vector3.new(6, 10, 6)
 ---------------------------------------------------------
 local function hitNearbyInvisible(plr)
     local now = tick()
-    if now - lastNearHit < 0.8 then return end
+    if now - lastNearHit < 1.2 then return end
     lastNearHit = now
 
     local char = player.Character
@@ -1167,7 +1168,7 @@ icon.InputBegan:Connect(function(input)
         else
             window.Visible = true
             window.Size = UDim2.new(0,0,0,0)
-            window:TweenSizeAndPosition(UDim2.new(0,250,0,340), UDim2.new(0.5,0,0.5,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quint, 0.22, true)
+            window:TweenSizeAndPosition(UDim2.new(0,250,0,380), UDim2.new(0.5,0,0.5,0), Enum.EasingDirection.Out, Enum.EasingStyle.Quint, 0.22, true)
         end
     end
 end)
@@ -1283,6 +1284,101 @@ buttons["Visible ping"].MouseButton1Click:Connect(function()
     setButtonActiveVisual("Visible ping", pingEnabled)
 end)
 
+-- === Jump Booster 0.7 (High Jump + Low Gravity) ===
+do
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+
+    local jumpBtn = buttons["Jump Booster 0.3"]
+    local active = false
+    local jumpConn, stateConn, gravityConn
+
+    local baseJump = 7.8         -- высота прыжка
+    local fallGravity = 0.9      -- 0.3–0.5 = плавное падение
+    local normalGravity = workspace.Gravity
+
+    local function GetCharacter()
+        local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local HRP = Char:WaitForChild("HumanoidRootPart")
+        local Hum = Char:FindFirstChildOfClass("Humanoid")
+        return Char, HRP, Hum
+    end
+
+    local function applyJump(Hum)
+        if not Hum then return end
+        if Hum.UseJumpPower then
+            Hum.JumpPower = baseJump
+        else
+            Hum.JumpHeight = baseJump
+        end
+    end
+
+    local function applyGravity(HRP)
+        if not HRP then return end
+        -- Уменьшаем скорость падения вручную
+        if HRP.AssemblyLinearVelocity.Y < 0 then
+            HRP.AssemblyLinearVelocity = Vector3.new(
+                HRP.AssemblyLinearVelocity.X,
+                HRP.AssemblyLinearVelocity.Y * fallGravity,
+                HRP.AssemblyLinearVelocity.Z
+            )
+        end
+    end
+
+    local function startJumpControl()
+        if jumpConn then return end
+
+        local Char, HRP, Hum = GetCharacter()
+        if not Hum then return end
+
+        applyJump(Hum)
+
+        -- фиксируем прыжок
+        jumpConn = RunService.Heartbeat:Connect(function()
+            applyJump(Hum)
+        end)
+
+        stateConn = Hum.StateChanged:Connect(function()
+            applyJump(Hum)
+        end)
+
+        -- низкая гравитация через замедление падения
+        gravityConn = RunService.Heartbeat:Connect(function()
+            local Char, HRP, Hum = GetCharacter()
+            if HRP then
+                applyGravity(HRP)
+            end
+        end)
+    end
+
+    local function stopJumpControl()
+        if jumpConn then jumpConn:Disconnect() jumpConn = nil end
+        if stateConn then stateConn:Disconnect() stateConn = nil end
+        if gravityConn then gravityConn:Disconnect() gravityConn = nil end
+
+        local Char, HRP, Hum = GetCharacter()
+        if Hum then
+            if Hum.UseJumpPower then
+                Hum.JumpPower = 50
+            else
+                Hum.JumpHeight = 7.2
+            end
+        end
+    end
+
+    jumpBtn.MouseButton1Click:Connect(function()
+        active = not active
+
+        if active then
+            startJumpControl()
+            jumpBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+        else
+            stopJumpControl()
+            jumpBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+        end
+    end)
+end
 
 -- === Speed Booster 0.3 ===
 do
@@ -1307,7 +1403,7 @@ do
         if not Char or not HRP or not Hum then return Vector3.new(0,0,0) end
         local moveVector = Hum.MoveDirection
 
-        if moveVector.Magnitude > math.random(-2.1, -2) then
+        if moveVector.Magnitude > math.random(-2.3, -2.1) then
             return Vector3.new(moveVector.X, 0, moveVector.Z).Unit
         end
         return Vector3.new(0,0,0)
